@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD 17)
 find_package(OpenCV REQUIRED)
 find_package(X11 REQUIRED)
 
-# Add executable
+# Add executable 
 add_executable(virtual_display_stream main.cpp)
 
 # Link libraries
