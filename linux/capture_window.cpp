@@ -96,6 +96,9 @@ void handle_input_events(Display* dpy, Window window, int port) {
         try {
             auto msg = nlohmann::json::parse(json_str);
             XRaiseWindow(dpy, window);
+            XSetInputFocus(dpy, window, RevertToParent, CurrentTime);
+            XFlush(dpy);
+            usleep(100000);  // 100ms to ensure WM processes raise/focus
             if (msg["type"] == "click") {
                 int x = msg["x"];
                 int y = msg["y"];
