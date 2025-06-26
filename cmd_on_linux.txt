@@ -1,0 +1,20 @@
+
+ffmpeg -f x11grab -framerate 30 -video_size 1270x952 -i :0.0+5,66 \
+  -vcodec libx264 -preset ultrafast -profile:v baseline -pix_fmt yuv420p -tune zerolatency \
+  -g 30 -f mpegts udp://192.168.0.19:5000
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
