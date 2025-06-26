@@ -141,6 +141,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XFlush(dpy);
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
             }
+            XLowerWindow(dpy, window);
         } catch (...) {
             std::cerr << "[INPUT] JSON parse error\n";
         }

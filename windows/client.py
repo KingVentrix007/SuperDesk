@@ -19,7 +19,7 @@ input_sock.connect((SERVER_IP, INPUT_PORT))
 # Shared state
 data = b''
 payload_size = 4
-click_position = Nonec
+click_position = None
 window_name = "Remote Window"
 
 # Mouse callback
