@@ -77,6 +77,9 @@ while True:
 
     key = cv2.waitKey(1) & 0xFF
     if key == ord('q'):
+        video_sock.close()
+        input_sock.close()
+        cv2.destroyAllWindows()
         break
     elif key != 255:  # Ignore "no key"
         key_event = {"type": "key", "key": chr(key)}
