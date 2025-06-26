@@ -16,7 +16,7 @@
 #include <algorithm>
 #include <X11/Xatom.h>
 #define PORT 12345
-
+bool is_running = true;
 // Recursive function to find window by title substring
 Window findWindow(Display* dpy, Window root, const char* title_substr) {
     Window ret = 0;
@@ -169,12 +169,22 @@ void handle_input_events(Display* dpy, Window window, int port) {
                     std::string key_str = msg["key"];
                     
                     // You need to map the key string to a keycode
+                    if (key_str.size() == 1 && key_str[0] == 27)
+                    {
+                        std::cout << "[INPUT] Escape pressed, stopping output.\n";
+                        is_running = false;
+                        return;
+                    }
                     KeySym keysym = XStringToKeysym(key_str.c_str());
+                    
                     if (keysym == NoSymbol) {
                         std::cerr << "[INPUT] Unknown key: " << key_str << "\n";
                         return;
                     }
-
+                    if (keysym == XK_Escape)
+                    {
+                        std::cout << "[INPUT] Escape pressed, stopping output.\n";
+                    }
                     KeyCode keycode = XKeysymToKeycode(dpy, keysym);
 
                     // Focus window before sending key
@@ -205,11 +215,13 @@ void handle_input_events(Display* dpy, Window window, int port) {
     close(sock_fd);
 }
 void stream_window(Display* dpy, Window target_win, int client_socket) {
-    while (true) {
+    while (is_running) {
         Pixmap pixmap = XCompositeNameWindowPixmap(dpy, target_win);
         XWindowAttributes attr{};
         XGetWindowAttributes(dpy, target_win, &attr);
-
+        XLowerWindow(dpy, target_win);
+        setWindowOpacity(dpy, target_win, 0xFFFFFFFF);
+        XFlush(dpy);
         XImage* image = XGetImage(dpy, pixmap, 0, 0, attr.width, attr.height, AllPlanes, ZPixmap);
         if (!image) {
             std::cerr << "Failed to get XImage\n";

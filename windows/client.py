@@ -66,7 +66,10 @@ while True:
         while True:
             # --- Receive frame size ---
             while len(data) < payload_size:
-                packet = video_sock.recv(4096)
+                try:
+                    packet = video_sock.recv(4096)
+                except ConnectionAbortedError:
+                    raise ConnectionError
                 if not packet:
                     raise ConnectionError("Video socket disconnected")
                 data += packet
@@ -107,10 +110,14 @@ while True:
                 msg_len = struct.pack('!I', len(msg))
                 input_sock.sendall(msg_len + msg)
 
-    except (ConnectionError, OSError) as e:
+    except (ConnectionError, OSError,ConnectionAbortedError) as e:
         print(f"[CLIENT] Disconnected or error: {e}")
-        cv2.imshow(window_name, np.zeros((200, 400, 3), dtype=np.uint8))
-        cv2.displayOverlay(window_name, "Disconnected. Reconnecting...", 2000)
+        # cv2.imshow(window_name, np.zeros((200, 400, 3), dtype=np.uint8))
+        # try:
+        #     cv2.displayOverlay(window_name, "Disconnected. Reconnecting...", 2000)
+        # except Exception as e:
+        #     pass
+        cv2.destroyAllWindows()
         video_sock.close()
         input_sock.close()
         time.sleep(RECONNECT_DELAY)
