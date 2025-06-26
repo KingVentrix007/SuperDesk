@@ -17,6 +17,7 @@
 #include <X11/Xatom.h>
 #define PORT 12345
 bool is_running = true;
+Window inputBlocker;
 // Recursive function to find window by title substring
 Window findWindow(Display* dpy, Window root, const char* title_substr) {
     Window ret = 0;
@@ -125,17 +126,44 @@ void handle_input_events(Display* dpy, Window window, int port) {
         std::string json_str(buffer.begin(), buffer.end());
         try {
             auto msg = nlohmann::json::parse(json_str);
+            XWindowAttributes attr;
+            XGetWindowAttributes(dpy, window, &attr);
+            Window focus_window;
+            int revert_to;
+             XGetInputFocus(dpy, &focus_window, &revert_to);
+             Window root = DefaultRootWindow(dpy);
+            XSetWindowAttributes wa;
+            wa.override_redirect = True;  // Prevent window manager interference
+
+           inputBlocker = XCreateWindow(
+    dpy,
+    root,
+    attr.x, attr.y,
+    attr.width, attr.height,
+    0,                // border width
+    0,                // depth: 0 = default for InputOnly
+    InputOnly,        // class
+    CopyFromParent,   // visual
+    CWOverrideRedirect,
+    &wa
+);
+
+                XMapRaised(dpy, inputBlocker);
+                XFlush(dpy);
+            usleep(75000);
+            std::cout <<"Made blocker\n";
             setWindowOpacity(dpy, window, 0x00000000);
             XRaiseWindow(dpy, window);
             XSetInputFocus(dpy, window, RevertToParent, CurrentTime);
             XFlush(dpy);
             XSync(dpy, False);
             XFlush(dpy);
-            // usleep(75000);
+            usleep(75000);
             setWindowOpacity(dpy, window, 0x00000000);
             if (!wait_for_focus(dpy, window, 5000)) {
             std::cerr << "[INPUT] Warning: window did not gain input focus after 5000ms\n";
             }
+            std::cout << "Handling msg\n";
             if (msg["type"] == "click") {
                 XWindowAttributes attr_check;
                 if (!XGetWindowAttributes(dpy, window, &attr_check) || attr_check.map_state != IsViewable) {
@@ -259,6 +287,12 @@ void handle_input_events(Display* dpy, Window window, int port) {
                     setWindowOpacity(dpy, window, 0xFFFFFFFF);
                     XFlush(dpy);
                 }
+            if (inputBlocker) {
+                std::cout <<"Killed blocker\n";
+    XDestroyWindow(dpy, inputBlocker);
+    inputBlocker = 0;
+    XFlush(dpy);
+}
             ;
             
         } catch (...) {
