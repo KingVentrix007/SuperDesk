@@ -12,6 +12,9 @@ input_sock = None
 is_getting_vid_sock = False
 is_getting_in_sock = False
 
+can_make_window = True
+window_open = False 
+
 VIDEO_PORT = 12345
 INPUT_PORT = 12346
 SERVER_IP = '192.168.0.26'  # Change this to the Linux server's IP
@@ -61,21 +64,27 @@ threading.Thread(target=connect_input, daemon=True).start()
 
 # --- Main loop ---
 while True:
-    while(video_sock == None or  input_sock == None):
+    while video_sock is None or input_sock is None:
         time.sleep(0.1)
-    cv2.namedWindow(window_name)
-    cv2.setMouseCallback(window_name, mouse_callback)
-    data = b''
-    payload_size = 4
-
+    print(video_sock,"|",input_sock)
     try:
+        if not window_open:
+            cv2.namedWindow(window_name)
+            cv2.setMouseCallback(window_name, mouse_callback)
+            window_open = True  # Set this only after successful window creation
+
+        data = b''
+        payload_size = 4
+
         while True:
+            current_width = cv2.getWindowProperty(window_name, cv2.WND_PROP_AUTOSIZE)
+            current_height = cv2.getWindowProperty(window_name, cv2.WND_PROP_FULLSCREEN)
             # --- Receive frame size ---
             while len(data) < payload_size:
                 try:
                     packet = video_sock.recv(4096)
                 except ConnectionAbortedError:
-                    pass
+                    packet = None
                 if not packet:
                     raise ConnectionError("Video socket disconnected")
                 data += packet
@@ -111,27 +120,30 @@ while True:
             if key == ord('q'):
                 raise KeyboardInterrupt
             elif key != 255:
+                print(key)
                 key_event = {"type": "key", "key": chr(key)}
                 msg = json.dumps(key_event).encode('utf-8')
                 msg_len = struct.pack('!I', len(msg))
                 input_sock.sendall(msg_len + msg)
 
-    except (ConnectionError, OSError,ConnectionAbortedError) as e:
+    except (ConnectionError, OSError, ConnectionAbortedError) as e:
         print(f"[CLIENT] Disconnected or error: {e}")
-        # cv2.imshow(window_name, np.zeros((200, 400, 3), dtype=np.uint8))
-        # try:
-        #     cv2.displayOverlay(window_name, "Disconnected. Reconnecting...", 2000)
-        # except Exception as e:
-        #     pass
-        cv2.destroyAllWindows()
-        video_sock.close()
-        input_sock.close()
+        if window_open:
+            cv2.destroyAllWindows()
+            window_open = False
+
+        try: video_sock.close()
+        except: pass
+        try: input_sock.close()
+        except: pass
         video_sock = None
         input_sock = None
-        if(video_sock == None and is_getting_vid_sock == False):
+
+        if video_sock is None and not is_getting_vid_sock:
             threading.Thread(target=connect_video, daemon=True).start()
-        if(input_sock == None and is_getting_in_sock == False):
+        if input_sock is None and not is_getting_in_sock:
             threading.Thread(target=connect_input, daemon=True).start()
+
         time.sleep(RECONNECT_DELAY)
         continue
 
