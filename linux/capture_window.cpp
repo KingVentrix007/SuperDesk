@@ -170,7 +170,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XFlush(dpy);
                 XSync(dpy, False);
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
-                // XLowerWindow(dpy, window);
+                XLowerWindow(dpy, window);
                 XSync(dpy, False);
                 XFlush(dpy);
                 usleep(75000);
@@ -208,7 +208,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XTestFakeButtonEvent(dpy, button, False, CurrentTime);
                 XFlush(dpy);
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
-                // XLowerWindow(dpy, window);
+                XLowerWindow(dpy, window);
                 XSync(dpy, False);
                 XFlush(dpy);
                 usleep(75000);
