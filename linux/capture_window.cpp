@@ -116,6 +116,30 @@ void handle_input_events(Display* dpy, Window window, int port) {
 
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
             }
+            else if (msg["type"] == "dclick") {
+                int x = msg["x"];
+                int y = msg["y"];
+                std::string btn = msg["button"];
+
+                // Translate local coords to screen coords
+                int win_x = attr.x + x;
+                int win_y = attr.y + y;
+
+                // Move mouse
+                XWarpPointer(dpy, None, root, 0, 0, 0, 0, win_x, win_y);
+                XFlush(dpy);
+
+                // Simulate click
+                int button = (btn == "right") ? 3 : 1;
+                XTestFakeButtonEvent(dpy, button, True, CurrentTime);
+                XTestFakeButtonEvent(dpy, button, False, CurrentTime);
+                XFlush(dpy);
+                usleep(150000);
+                XTestFakeButtonEvent(dpy, button, True, CurrentTime);
+                XTestFakeButtonEvent(dpy, button, False, CurrentTime);
+                XFlush(dpy);
+                std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
+            }
         } catch (...) {
             std::cerr << "[INPUT] JSON parse error\n";
         }

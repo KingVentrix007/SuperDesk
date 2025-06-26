@@ -19,16 +19,19 @@ input_sock.connect((SERVER_IP, INPUT_PORT))
 # Shared state
 data = b''
 payload_size = 4
-click_position = None
+click_position = Nonec
 window_name = "Remote Window"
 
 # Mouse callback
 def mouse_callback(event, x, y, flags, param):
     global click_position
+    # print(event)
     if event == cv2.EVENT_LBUTTONDOWN:
         click_position = {"type": "click", "button": "left", "x": x, "y": y}
     elif event == cv2.EVENT_RBUTTONDOWN:
         click_position = {"type": "click", "button": "right", "x": x, "y": y}
+    elif event == cv2.EVENT_LBUTTONDBLCLK:
+        click_position = {"type": "dclick", "button": "left", "x": x, "y": y}
 
 # Setup OpenCV window
 cv2.namedWindow(window_name)
