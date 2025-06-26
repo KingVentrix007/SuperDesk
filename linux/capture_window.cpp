@@ -131,7 +131,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
             XFlush(dpy);
             XSync(dpy, False);
             XFlush(dpy);
-            usleep(75000);
+            // usleep(75000);
             setWindowOpacity(dpy, window, 0x00000000);
             if (!wait_for_focus(dpy, window, 5000)) {
             std::cerr << "[INPUT] Warning: window did not gain input focus after 5000ms\n";
@@ -163,7 +163,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XWarpPointer(dpy, None, root, 0, 0, 0, 0, win_x, win_y);
                 XFlush(dpy);
                 XSync(dpy, False);
-                usleep(75000);
+                // usleep(75000);
                 // Simulate click
                 int button = (btn == "right") ? 3 : 1;
                 XTestFakeButtonEvent(dpy, button, True, CurrentTime);
@@ -175,10 +175,11 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XSync(dpy, False);
                 XFlush(dpy);
                 usleep(75000);
-                setWindowOpacity(dpy, window, 0xFFFFFFFF);
+                // setWindowOpacity(dpy, window, 0xFFFFFFFF);
                 XFlush(dpy);
             }
             else if (msg["type"] == "dclick") {
+                setWindowOpacity(dpy, window, 0x00000000);
                 int x = msg["x"];
                 int y = msg["y"];
                 std::string btn = msg["button"];
@@ -213,7 +214,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XSync(dpy, False);
                 XFlush(dpy);
                 usleep(75000);
-                setWindowOpacity(dpy, window, 0xFFFFFFFF);
+                // setWindowOpacity(dpy, window, 0xFFFFFFFF);
                 XFlush(dpy);
             }
             else if (msg["type"] == "key") {
@@ -242,7 +243,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                     XRaiseWindow(dpy, window);
                     XSetInputFocus(dpy, window, RevertToParent, CurrentTime);
                     XFlush(dpy);
-                    usleep(100000);
+                    // usleep(100000);
 
                     // Send key press and release
                     XTestFakeKeyEvent(dpy, keycode, True, CurrentTime);  // key down
@@ -254,7 +255,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                     // XLowerWindow(dpy, window);
                     XSync(dpy, False);
                     XFlush(dpy);
-                    usleep(75000);
+                    // usleep(75000);
                     setWindowOpacity(dpy, window, 0xFFFFFFFF);
                     XFlush(dpy);
                 }
@@ -276,7 +277,7 @@ void stream_window(Display* dpy, Window target_win, int client_socket) {
         // XLowerWindow(dpy, target_win);
         XSync(dpy, False);
         XFlush(dpy);
-        usleep(75000);
+        // usleep(75000);
         setWindowOpacity(dpy, target_win, 0xFFFFFFFF);
         XFlush(dpy);
         XImage* image = XGetImage(dpy, pixmap, 0, 0, attr.width, attr.height, AllPlanes, ZPixmap);
