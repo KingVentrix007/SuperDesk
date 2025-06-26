@@ -301,20 +301,18 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    Window root = DefaultRootWindow(dpy);
+    int screen_width = DisplayWidth(dpy, DefaultScreen(dpy));
+    int screen_height = DisplayHeight(dpy, DefaultScreen(dpy));
 
-    // Setup TCP server socket
+    // Setup server socket
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == 0) {
+    if (server_fd < 0) {
         perror("socket failed");
         return 1;
     }
 
     int opt = 1;
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt))) {
-        perror("setsockopt");
-        return 1;
-    }
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
 
     struct sockaddr_in address{};
     address.sin_family = AF_INET;
@@ -331,40 +329,84 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::cout << "Waiting for window to be dragged off-screen...\n";
+    std::cout << "Watching for windows dragged to screen edge...\n";
+
+    int hold_counter = 0;
+    const int hold_threshold = 20; // 20 * 100ms = 2 seconds
 
     while (true) {
-        // Scan all top-level windows for off-screen ones
-        Window target_win = find_offscreen_window(dpy);
-        if (target_win) {
-            std::cout << "Window moved off-screen. ID: " << target_win << "\n";
+        Window root = DefaultRootWindow(dpy);
+        Window ret_root, ret_child;
+        int root_x, root_y, win_x, win_y;
+        unsigned int mask;
 
-            // Optional: Spawn input handling thread
-            std::thread input_thread(handle_input_events, dpy, target_win, 12346);
-            input_thread.detach();
+        if (!XQueryPointer(dpy, root, &ret_root, &ret_child,
+                           &root_x, &root_y, &win_x, &win_y, &mask)) {
+            usleep(100000);
+            continue;
+        }
 
-            // Prepare for off-screen capture
-            XCompositeRedirectWindow(dpy, target_win, CompositeRedirectAutomatic);
+        bool is_pressed = mask & Button1Mask;
+        bool at_edge = (root_x <= 1 || root_y <= 1 ||
+                        root_x >= screen_width - 1 || root_y >= screen_height - 1);
+
+        if (is_pressed && at_edge) {
+            hold_counter++;
+        } else {
+            hold_counter = 0;
+        }
+
+        if (hold_counter >= hold_threshold) {
+            std::cout << "[INFO] Edge drag detected. Trying to stream window...\n";
+            hold_counter = 0;
+
+            // Get active window
+            Atom actual_type;
+            int actual_format;
+            unsigned long nitems, bytes_after;
+            unsigned char* prop = nullptr;
+            Atom active = XInternAtom(dpy, "_NET_ACTIVE_WINDOW", True);
+            Window active_win = 0;
+
+            if (XGetWindowProperty(dpy, root, active, 0, (~0L), False, AnyPropertyType,
+                                   &actual_type, &actual_format, &nitems, &bytes_after, &prop) == Success) {
+                if (nitems > 0) {
+                    active_win = *(Window*)prop;
+                }
+                XFree(prop);
+            }
+
+            if (!active_win) {
+                std::cerr << "[WARN] No active window found.\n";
+                continue;
+            }
+
+            std::cout << "[INFO] Active window ID: " << active_win << "\n";
+
+            // Redirect for composite capture
+            XCompositeRedirectWindow(dpy, active_win, CompositeRedirectAutomatic);
             XFlush(dpy);
 
-            std::cout << "Waiting for client connection on port " << PORT << "...\n";
+            // Start input thread
+            std::thread input_thread(handle_input_events, dpy, active_win, 12346);
+            input_thread.detach();
+
+            std::cout << "[INFO] Waiting for client to connect on port " << PORT << "...\n";
             socklen_t addrlen = sizeof(address);
             int client_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
             if (client_socket < 0) {
                 perror("accept");
-                break;
+                continue;
             }
 
-            std::cout << "Client connected!\n";
-            stream_window(dpy, target_win, client_socket);
-
+            std::cout << "[INFO] Client connected, starting stream...\n";
+            stream_window(dpy, active_win, client_socket);
             close(client_socket);
 
-            // Stop after one stream, or continue monitoring for next drag
-            std::cout << "Streaming session ended. Waiting for next window drag...\n";
+            std::cout << "[INFO] Stream ended. Watching for next edge drag...\n";
         }
 
-        usleep(100000); // Poll every 100ms
+        usleep(100000); // 100 ms delay
     }
 
     close(server_fd);
