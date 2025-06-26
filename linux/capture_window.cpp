@@ -253,12 +253,27 @@ void handle_input_events(Display* dpy, Window window, int port) {
                     {
                         std::cout << "[INPUT] Escape pressed, stopping output.\n";
                         is_running = false;
+                        if (inputBlocker) {
+                            std::cout <<"Killed blocker\n";
+                            XDestroyWindow(dpy, inputBlocker);
+                            inputBlocker = 0;
+                            XFlush(dpy);
+                            
+                        }
+                    setWindowOpacity(dpy, window, 0xFFFFFFFF);
                         return;
                     }
                     KeySym keysym = XStringToKeysym(key_str.c_str());
                     
                     if (keysym == NoSymbol) {
                         std::cerr << "[INPUT] Unknown key: " << key_str << "\n";
+                        if (inputBlocker) {
+                            std::cout <<"Killed blocker\n";
+                            XDestroyWindow(dpy, inputBlocker);
+                            inputBlocker = 0;
+                            XFlush(dpy);
+                        }
+                        setWindowOpacity(dpy, window, 0xFFFFFFFF);
                         return;
                     }
                     if (keysym == XK_Escape)
