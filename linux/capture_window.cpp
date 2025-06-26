@@ -14,7 +14,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <algorithm>
-
+#include <X11/Xatom.h>
 #define PORT 12345
 
 // Recursive function to find window by title substring
@@ -60,6 +60,20 @@ cv::Mat ximageToMat(XImage* image) {
     cv::cvtColor(mat, bgr, cv::COLOR_BGRA2BGR);
     return bgr;
 }
+
+
+void setWindowOpacity(Display* dpy, Window win, unsigned long opacity) {
+    Atom property = XInternAtom(dpy, "_NET_WM_WINDOW_OPACITY", False);
+    if (property == None) {
+        std::cerr << "No _NET_WM_WINDOW_OPACITY atom available\n";
+        return;
+    }
+    XChangeProperty(dpy, win, property, XA_CARDINAL, 32, PropModeReplace,
+                    (unsigned char *)&opacity, 1);
+    XFlush(dpy);
+}
+
+
 void handle_input_events(Display* dpy, Window window, int port) {
     int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in addr{};
@@ -95,6 +109,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
         std::string json_str(buffer.begin(), buffer.end());
         try {
             auto msg = nlohmann::json::parse(json_str);
+            setWindowOpacity(dpy, window, 0x00000000);
             XRaiseWindow(dpy, window);
             XSetInputFocus(dpy, window, RevertToParent, CurrentTime);
             XFlush(dpy);
@@ -120,6 +135,8 @@ void handle_input_events(Display* dpy, Window window, int port) {
 
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
                 XLowerWindow(dpy, window);
+                setWindowOpacity(dpy, window, 0xFFFFFFFF);
+                XFlush(dpy);
             }
             else if (msg["type"] == "dclick") {
                 int x = msg["x"];
@@ -145,6 +162,8 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XFlush(dpy);
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
                 XLowerWindow(dpy, window);
+                setWindowOpacity(dpy, window, 0xFFFFFFFF);
+                XFlush(dpy);
             }
             ;
             
