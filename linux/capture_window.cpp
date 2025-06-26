@@ -116,6 +116,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XFlush(dpy);
 
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
+                XLowerWindow(dpy, window);
             }
             else if (msg["type"] == "dclick") {
                 int x = msg["x"];
@@ -140,8 +141,10 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XTestFakeButtonEvent(dpy, button, False, CurrentTime);
                 XFlush(dpy);
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
+                XLowerWindow(dpy, window);
             }
-            XLowerWindow(dpy, window);
+            ;
+            
         } catch (...) {
             std::cerr << "[INPUT] JSON parse error\n";
         }
