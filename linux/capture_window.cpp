@@ -121,7 +121,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
 
                 // Translate local coords to screen coords
                 int win_x = attr.x + x;
-                int win_y = attr.y + y;
+                int win_y = attr.y + y+ 25;
 
                 // Move mouse
                 XWarpPointer(dpy, None, root, 0, 0, 0, 0, win_x, win_y);
@@ -145,7 +145,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
 
                 // Translate local coords to screen coords
                 int win_x = attr.x + x;
-                int win_y = attr.y + y;
+                int win_y = attr.y + y+25;
 
                 // Move mouse
                 XWarpPointer(dpy, None, root, 0, 0, 0, 0, win_x, win_y);

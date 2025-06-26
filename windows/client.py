@@ -32,7 +32,7 @@ def mouse_callback(event, x, y, flags, param):
         click_position = {"type": "click", "button": "right", "x": x, "y": y}
     elif event == cv2.EVENT_LBUTTONDBLCLK:
         click_position = {"type": "dclick", "button": "left", "x": x, "y": y}
-
+    # print(click_position)
 # Setup OpenCV window
 cv2.namedWindow(window_name)
 cv2.setMouseCallback(window_name, mouse_callback)
