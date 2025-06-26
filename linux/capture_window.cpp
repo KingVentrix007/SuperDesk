@@ -253,6 +253,39 @@ bool is_window_offscreen(Display* dpy, Window win) {
     return (x + attr.width < 0 || x > screen_width ||
             y + attr.height < 0 || y > screen_height);
 }
+Window find_offscreen_window(Display* dpy) {
+    Window root = DefaultRootWindow(dpy);
+    Window root_return, parent_return;
+    Window* children;
+    unsigned int nchildren;
+
+    if (XQueryTree(dpy, root, &root_return, &parent_return, &children, &nchildren) == 0)
+        return 0;
+
+    for (unsigned int i = 0; i < nchildren; ++i) {
+        Window w = children[i];
+
+        XWindowAttributes attr;
+        if (!XGetWindowAttributes(dpy, w, &attr) || attr.map_state != IsViewable)
+            continue;
+
+        int x, y;
+        Window dummy;
+        XTranslateCoordinates(dpy, w, root, 0, 0, &x, &y, &dummy);
+
+        int screen_width = DisplayWidth(dpy, DefaultScreen(dpy));
+        int screen_height = DisplayHeight(dpy, DefaultScreen(dpy));
+
+        if (x + attr.width < 0 || x > screen_width ||
+            y + attr.height < 0 || y > screen_height) {
+            return w;
+        }
+    }
+
+    if (children)
+        XFree(children);
+    return 0; // No window offscreen
+}
 
 int main(int argc, char** argv) {
     Display* dpy = XOpenDisplay(nullptr);
