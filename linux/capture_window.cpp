@@ -204,14 +204,57 @@ void handle_input_events(Display* dpy, Window window, int port) {
     close(client_fd);
     close(sock_fd);
 }
+void stream_window(Display* dpy, Window target_win, int client_socket) {
+    while (true) {
+        Pixmap pixmap = XCompositeNameWindowPixmap(dpy, target_win);
+        XWindowAttributes attr{};
+        XGetWindowAttributes(dpy, target_win, &attr);
+
+        XImage* image = XGetImage(dpy, pixmap, 0, 0, attr.width, attr.height, AllPlanes, ZPixmap);
+        if (!image) {
+            std::cerr << "Failed to get XImage\n";
+            break;
+        }
+
+        cv::Mat frame = ximageToMat(image);
+
+        std::vector<uchar> buf;
+        cv::imencode(".jpg", frame, buf, {cv::IMWRITE_JPEG_QUALITY, 80});
+
+        uint32_t frame_size = htonl(buf.size());
+        if (send(client_socket, &frame_size, sizeof(frame_size), 0) < 0) {
+            perror("send frame size");
+            break;
+        }
+
+        if (send(client_socket, buf.data(), buf.size(), 0) < 0) {
+            perror("send frame data");
+            break;
+        }
+
+        XDestroyImage(image);
+        XFreePixmap(dpy, pixmap);
+
+        usleep(33 * 1000);
+    }
+}
+bool is_window_offscreen(Display* dpy, Window win) {
+    XWindowAttributes attr;
+    XGetWindowAttributes(dpy, win, &attr);
+
+    int x, y;
+    Window child;
+    XTranslateCoordinates(dpy, win, DefaultRootWindow(dpy), 0, 0, &x, &y, &child);
+
+    int screen_width = DisplayWidth(dpy, DefaultScreen(dpy));
+    int screen_height = DisplayHeight(dpy, DefaultScreen(dpy));
+
+    // If part of window is outside screen bounds
+    return (x + attr.width < 0 || x > screen_width ||
+            y + attr.height < 0 || y > screen_height);
+}
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cout << "Usage: ./capture_stream <window_title_substring>\n";
-        return 1;
-    }
-
-    const char* target_title = argv[1];
     Display* dpy = XOpenDisplay(nullptr);
     if (!dpy) {
         std::cerr << "Cannot open display\n";
@@ -226,20 +269,6 @@ int main(int argc, char** argv) {
     }
 
     Window root = DefaultRootWindow(dpy);
-    Window target_win = findWindow(dpy, root, target_title);
-    if (!target_win) {
-        std::cerr << "Window with title containing '" << target_title << "' not found\n";
-        XCloseDisplay(dpy);
-        return 1;
-    }
-
-    std::cout << "Found window: " << target_win << "\n";
-
-    // Redirect window for off-screen capture
-    XCompositeRedirectWindow(dpy, target_win, CompositeRedirectAutomatic);
-    XFlush(dpy);
-    std::thread input_thread(handle_input_events, dpy, target_win, 12346);
-    input_thread.detach();  // or join if you want clean exit
 
     // Setup TCP server socket
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
@@ -269,56 +298,43 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    std::cout << "Waiting for client connection on port " << PORT << "...\n";
-
-    socklen_t addrlen = sizeof(address);
-    int client_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
-    if (client_socket < 0) {
-        perror("accept");
-        return 1;
-    }
-    std::cout << "Client connected!\n";
+    std::cout << "Waiting for window to be dragged off-screen...\n";
 
     while (true) {
-        Pixmap pixmap = XCompositeNameWindowPixmap(dpy, target_win);
-        XWindowAttributes attr{};
-        XGetWindowAttributes(dpy, target_win, &attr);
+        // Scan all top-level windows for off-screen ones
+        Window target_win = find_offscreen_window(dpy);
+        if (target_win) {
+            std::cout << "Window moved off-screen. ID: " << target_win << "\n";
 
-        XImage* image = XGetImage(dpy, pixmap, 0, 0, attr.width, attr.height, AllPlanes, ZPixmap);
-        if (!image) {
-            std::cerr << "Failed to get XImage\n";
-            break;
+            // Optional: Spawn input handling thread
+            std::thread input_thread(handle_input_events, dpy, target_win, 12346);
+            input_thread.detach();
+
+            // Prepare for off-screen capture
+            XCompositeRedirectWindow(dpy, target_win, CompositeRedirectAutomatic);
+            XFlush(dpy);
+
+            std::cout << "Waiting for client connection on port " << PORT << "...\n";
+            socklen_t addrlen = sizeof(address);
+            int client_socket = accept(server_fd, (struct sockaddr*)&address, &addrlen);
+            if (client_socket < 0) {
+                perror("accept");
+                break;
+            }
+
+            std::cout << "Client connected!\n";
+            stream_window(dpy, target_win, client_socket);
+
+            close(client_socket);
+
+            // Stop after one stream, or continue monitoring for next drag
+            std::cout << "Streaming session ended. Waiting for next window drag...\n";
         }
 
-        cv::Mat frame = ximageToMat(image);
-
-        // Encode frame as JPEG
-        std::vector<uchar> buf;
-        cv::imencode(".jpg", frame, buf, {cv::IMWRITE_JPEG_QUALITY, 80});
-
-        // Send frame size (4 bytes network byte order)
-        uint32_t frame_size = htonl(buf.size());
-        if (send(client_socket, &frame_size, sizeof(frame_size), 0) < 0) {
-            perror("send frame size");
-            break;
-        }
-
-        // Send frame data
-        if (send(client_socket, buf.data(), buf.size(), 0) < 0) {
-            perror("send frame data");
-            break;
-        }
-
-        XDestroyImage(image);
-        XFreePixmap(dpy, pixmap);
-
-        // Limit frame rate to ~30 FPS
-        usleep(33 * 1000);
+        usleep(100000); // Poll every 100ms
     }
 
-    close(client_socket);
     close(server_fd);
     XCloseDisplay(dpy);
-
     return 0;
 }
