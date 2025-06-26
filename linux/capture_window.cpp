@@ -95,6 +95,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
         std::string json_str(buffer.begin(), buffer.end());
         try {
             auto msg = nlohmann::json::parse(json_str);
+            XRaiseWindow(dpy, window);
             if (msg["type"] == "click") {
                 int x = msg["x"];
                 int y = msg["y"];
