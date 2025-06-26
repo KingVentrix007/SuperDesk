@@ -125,13 +125,14 @@ void handle_input_events(Display* dpy, Window window, int port) {
         std::string json_str(buffer.begin(), buffer.end());
         try {
             auto msg = nlohmann::json::parse(json_str);
-            // setWindowOpacity(dpy, window, 0x000000000);
+            setWindowOpacity(dpy, window, 0x00000000);
             XRaiseWindow(dpy, window);
             XSetInputFocus(dpy, window, RevertToParent, CurrentTime);
             XFlush(dpy);
             XSync(dpy, False);
             XFlush(dpy);
             usleep(75000);
+            setWindowOpacity(dpy, window, 0x00000000);
             if (!wait_for_focus(dpy, window, 5000)) {
             std::cerr << "[INPUT] Warning: window did not gain input focus after 5000ms\n";
             }
