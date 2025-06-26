@@ -1,0 +1,2 @@
+g++ capture_window.cpp -o capture_stream -lX11 -lXcomposite -lXfixes -lXrender `pkg-config --cflags --libs opencv4` -lXtst -lpthread
+

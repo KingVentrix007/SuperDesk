@@ -3,7 +3,9 @@
 #include <X11/extensions/Xcomposite.h>
 #include <X11/extensions/Xfixes.h>
 #include <X11/Xutil.h>
-
+#include <X11/extensions/XTest.h>
+#include <thread>
+#include <nlohmann/json.hpp>
 #include <iostream>
 #include <vector>
 #include <cstring>
@@ -58,6 +60,70 @@ cv::Mat ximageToMat(XImage* image) {
     cv::cvtColor(mat, bgr, cv::COLOR_BGRA2BGR);
     return bgr;
 }
+void handle_input_events(Display* dpy, Window window, int port) {
+    int sock_fd = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in addr{};
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = INADDR_ANY;
+    addr.sin_port = htons(port);
+
+    bind(sock_fd, (struct sockaddr*)&addr, sizeof(addr));
+    listen(sock_fd, 1);
+    std::cout << "[INPUT] Listening on port " << port << "...\n";
+    int client_fd = accept(sock_fd, nullptr, nullptr);
+    std::cout << "[INPUT] Client connected.\n";
+
+    char header[4];
+    std::vector<char> buffer;
+
+    XWindowAttributes attr;
+    XGetWindowAttributes(dpy, window, &attr);
+    Window root = DefaultRootWindow(dpy);
+
+    while (true) {
+        int received = recv(client_fd, header, 4, MSG_WAITALL);
+        if (received != 4) break;
+
+        uint32_t msg_size;
+        memcpy(&msg_size, header, 4);
+        msg_size = ntohl(msg_size);
+
+        buffer.resize(msg_size);
+        received = recv(client_fd, buffer.data(), msg_size, MSG_WAITALL);
+        if (received != msg_size) break;
+
+        std::string json_str(buffer.begin(), buffer.end());
+        try {
+            auto msg = nlohmann::json::parse(json_str);
+            if (msg["type"] == "click") {
+                int x = msg["x"];
+                int y = msg["y"];
+                std::string btn = msg["button"];
+
+                // Translate local coords to screen coords
+                int win_x = attr.x + x;
+                int win_y = attr.y + y;
+
+                // Move mouse
+                XWarpPointer(dpy, None, root, 0, 0, 0, 0, win_x, win_y);
+                XFlush(dpy);
+
+                // Simulate click
+                int button = (btn == "right") ? 3 : 1;
+                XTestFakeButtonEvent(dpy, button, True, CurrentTime);
+                XTestFakeButtonEvent(dpy, button, False, CurrentTime);
+                XFlush(dpy);
+
+                std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
+            }
+        } catch (...) {
+            std::cerr << "[INPUT] JSON parse error\n";
+        }
+    }
+
+    close(client_fd);
+    close(sock_fd);
+}
 
 int main(int argc, char** argv) {
     if (argc < 2) {
@@ -92,6 +158,8 @@ int main(int argc, char** argv) {
     // Redirect window for off-screen capture
     XCompositeRedirectWindow(dpy, target_win, CompositeRedirectAutomatic);
     XFlush(dpy);
+    std::thread input_thread(handle_input_events, dpy, target_win, 12346);
+    input_thread.detach();  // or join if you want clean exit
 
     // Setup TCP server socket
     int server_fd = socket(AF_INET, SOCK_STREAM, 0);
