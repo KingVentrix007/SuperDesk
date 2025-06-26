@@ -165,6 +165,35 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 setWindowOpacity(dpy, window, 0xFFFFFFFF);
                 XFlush(dpy);
             }
+            else if (msg["type"] == "key") {
+                    std::string key_str = msg["key"];
+                    
+                    // You need to map the key string to a keycode
+                    KeySym keysym = XStringToKeysym(key_str.c_str());
+                    if (keysym == NoSymbol) {
+                        std::cerr << "[INPUT] Unknown key: " << key_str << "\n";
+                        return;
+                    }
+
+                    KeyCode keycode = XKeysymToKeycode(dpy, keysym);
+
+                    // Focus window before sending key
+                    XRaiseWindow(dpy, window);
+                    XSetInputFocus(dpy, window, RevertToParent, CurrentTime);
+                    XFlush(dpy);
+                    usleep(100000);
+
+                    // Send key press and release
+                    XTestFakeKeyEvent(dpy, keycode, True, CurrentTime);  // key down
+                    XTestFakeKeyEvent(dpy, keycode, False, CurrentTime); // key up
+                    XFlush(dpy);
+
+                    std::cout << "[INPUT] Key press: " << key_str << "\n";
+
+                    XLowerWindow(dpy, window);
+                    setWindowOpacity(dpy, window, 0xFFFFFFFF);
+                    XFlush(dpy);
+                }
             ;
             
         } catch (...) {

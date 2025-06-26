@@ -75,8 +75,16 @@ while True:
         input_sock.sendall(msg_len + msg)
         click_position = None
 
-    if cv2.waitKey(1) & 0xFF == ord('q'):
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
         break
+    elif key != 255:  # Ignore "no key"
+        key_event = {"type": "key", "key": chr(key)}
+        msg = json.dumps(key_event).encode('utf-8')
+        msg_len = struct.pack('!I', len(msg))
+        input_sock.sendall(msg_len + msg)
+
+        
 
 video_sock.close()
 input_sock.close()
