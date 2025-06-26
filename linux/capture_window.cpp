@@ -72,6 +72,22 @@ void setWindowOpacity(Display* dpy, Window win, unsigned long opacity) {
                     (unsigned char *)&opacity, 1);
     XFlush(dpy);
 }
+int wait_for_focus(Display* dpy, Window win, int timeout_ms = 500) {
+    Window focused_win;
+    int elapsed = 0;
+    const int interval = 10; // ms
+
+    while (elapsed < timeout_ms) {
+        int revert;
+        XGetInputFocus(dpy, &focused_win, &revert);
+        if (focused_win == win) {
+            return 1; // success
+        }
+        usleep(interval * 1000);
+        elapsed += interval;
+    }
+    return 0; // failed to get focus
+}
 
 
 void handle_input_events(Display* dpy, Window window, int port) {
@@ -109,19 +125,35 @@ void handle_input_events(Display* dpy, Window window, int port) {
         std::string json_str(buffer.begin(), buffer.end());
         try {
             auto msg = nlohmann::json::parse(json_str);
-            setWindowOpacity(dpy, window, 0x00000000);
+            setWindowOpacity(dpy, window, 0x000000000);
             XRaiseWindow(dpy, window);
             XSetInputFocus(dpy, window, RevertToParent, CurrentTime);
             XFlush(dpy);
-            usleep(100000);  // 100ms to ensure WM processes raise/focus
+            if (!wait_for_focus(dpy, window, 500)) {
+            std::cerr << "[INPUT] Warning: window did not gain input focus after 500ms\n";
+            }
             if (msg["type"] == "click") {
+                XWindowAttributes attr_check;
+                if (!XGetWindowAttributes(dpy, window, &attr_check) || attr_check.map_state != IsViewable) {
+                    std::cerr << "[INPUT] Target window not viewable or mapped\n";
+                    continue;
+                }
+
                 int x = msg["x"];
                 int y = msg["y"];
                 std::string btn = msg["button"];
-
+                std::cout << "x:" << attr.x <<"|y:"<<attr.y <<"\n";
                 // Translate local coords to screen coords
-                int win_x = attr.x + x;
-                int win_y = attr.y + y+ 25;
+                XWindowAttributes attr;
+                XGetWindowAttributes(dpy, window, &attr);
+                Window root = DefaultRootWindow(dpy);
+
+                int abs_x, abs_y;
+                Window dummy;
+                XTranslateCoordinates(dpy, window, root, 0, 0, &abs_x, &abs_y, &dummy);
+
+                int win_x = abs_x + x;
+                int win_y = abs_y + y;
 
                 // Move mouse
                 XWarpPointer(dpy, None, root, 0, 0, 0, 0, win_x, win_y);
@@ -134,7 +166,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XFlush(dpy);
 
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
-                XLowerWindow(dpy, window);
+                // XLowerWindow(dpy, window);
                 setWindowOpacity(dpy, window, 0xFFFFFFFF);
                 XFlush(dpy);
             }
@@ -144,8 +176,16 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 std::string btn = msg["button"];
 
                 // Translate local coords to screen coords
-                int win_x = attr.x + x;
-                int win_y = attr.y + y+25;
+                XWindowAttributes attr;
+                XGetWindowAttributes(dpy, window, &attr);
+                Window root = DefaultRootWindow(dpy);
+
+                int abs_x, abs_y;
+                Window dummy;
+                XTranslateCoordinates(dpy, window, root, 0, 0, &abs_x, &abs_y, &dummy);
+
+                int win_x = abs_x + x;
+                int win_y = abs_y + y;
 
                 // Move mouse
                 XWarpPointer(dpy, None, root, 0, 0, 0, 0, win_x, win_y);
@@ -161,7 +201,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
                 XTestFakeButtonEvent(dpy, button, False, CurrentTime);
                 XFlush(dpy);
                 std::cout << "[INPUT] Click " << btn << " at (" << x << "," << y << ")\n";
-                XLowerWindow(dpy, window);
+                // XLowerWindow(dpy, window);
                 setWindowOpacity(dpy, window, 0xFFFFFFFF);
                 XFlush(dpy);
             }
@@ -200,7 +240,7 @@ void handle_input_events(Display* dpy, Window window, int port) {
 
                     std::cout << "[INPUT] Key press: " << key_str << "\n";
 
-                    XLowerWindow(dpy, window);
+                    // XLowerWindow(dpy, window);
                     setWindowOpacity(dpy, window, 0xFFFFFFFF);
                     XFlush(dpy);
                 }
@@ -219,7 +259,7 @@ void stream_window(Display* dpy, Window target_win, int client_socket) {
         Pixmap pixmap = XCompositeNameWindowPixmap(dpy, target_win);
         XWindowAttributes attr{};
         XGetWindowAttributes(dpy, target_win, &attr);
-        XLowerWindow(dpy, target_win);
+        // XLowerWindow(dpy, target_win);
         setWindowOpacity(dpy, target_win, 0xFFFFFFFF);
         XFlush(dpy);
         XImage* image = XGetImage(dpy, pixmap, 0, 0, attr.width, attr.height, AllPlanes, ZPixmap);

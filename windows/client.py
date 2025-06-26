@@ -8,6 +8,10 @@ import threading
 
 video_sock = None
 input_sock = None
+
+is_getting_vid_sock = False
+is_getting_in_sock = False
+
 VIDEO_PORT = 12345
 INPUT_PORT = 12346
 SERVER_IP = '192.168.0.26'  # Change this to the Linux server's IP
@@ -27,7 +31,8 @@ def mouse_callback(event, x, y, flags, param):
         click_position = {"type": "dclick", "button": "left", "x": x, "y": y}
 
 def connect_video():
-    global video_sock
+    global video_sock,is_getting_vid_sock
+    is_getting_vid_sock = True
     while video_sock is None:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -36,9 +41,10 @@ def connect_video():
             print("[CLIENT] Connected to video stream")
         except Exception:
             time.sleep(RECONNECT_DELAY)
-
+    is_getting_vid_sock = False
 def connect_input():
-    global input_sock
+    global input_sock,is_getting_in_sock
+    is_getting_in_sock = True
     while input_sock is None:
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -47,7 +53,7 @@ def connect_input():
             print("[CLIENT] Connected to input control")
         except Exception:
             time.sleep(RECONNECT_DELAY)
-
+    is_getting_in_sock = False
 # --- Setup OpenCV ---
 
 threading.Thread(target=connect_video, daemon=True).start()
@@ -69,7 +75,7 @@ while True:
                 try:
                     packet = video_sock.recv(4096)
                 except ConnectionAbortedError:
-                    raise ConnectionError
+                    pass
                 if not packet:
                     raise ConnectionError("Video socket disconnected")
                 data += packet
@@ -120,6 +126,12 @@ while True:
         cv2.destroyAllWindows()
         video_sock.close()
         input_sock.close()
+        video_sock = None
+        input_sock = None
+        if(video_sock == None and is_getting_vid_sock == False):
+            threading.Thread(target=connect_video, daemon=True).start()
+        if(input_sock == None and is_getting_in_sock == False):
+            threading.Thread(target=connect_input, daemon=True).start()
         time.sleep(RECONNECT_DELAY)
         continue
 
